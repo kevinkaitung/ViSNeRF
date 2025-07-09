@@ -1,6 +1,6 @@
 # ViSNeRF: Efficient Multidimensional Neural Radiance Field Representation for Visualization Synthesis of Dynamic Volumetric Scenes
-
-### [arXiv Paper](https://arxiv.org/abs/2502.16731)
+### Presented at IEEE PacificVis 2025
+### [Paper](https://arxiv.org/abs/2502.16731)
 
 ![block](assets/overview.jpg)
 

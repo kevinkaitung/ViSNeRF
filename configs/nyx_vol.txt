@@ -11,6 +11,7 @@ vecSize_params = [3,3,5]
 min_params = [0.120,0.0215,0.55]
 max_params = [0.155,0.0235,0.85]
 bbox = [[-0.1800,-0.1800,-0.1800],[0.1800,0.1800,0.1800]]
+white_bkgd = True
 
 n_iters = 90000
 batch_size = 4096

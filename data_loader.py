@@ -60,12 +60,13 @@ class ViSNeRFDataset(Dataset):
         self.n_params = args.nParams
         print(self.scene_bbox)
         self.blender2opencv = np.array([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
-        
-        self.white_bg = True
-        # self.near_far = [2.0,6.0]
-        self.near_far = [0.1,2.0]
-        # self.near_far = [0.5,4.0]
-        # self.near_far = [0.01, 6.0]
+
+        # Background: driven by --white_bkgd (default False). White-bg datasets
+        # (e.g. Nyx) must set `white_bkgd = True` in their config; black-bg
+        # datasets (e.g. CQ500 DVR) leave it unset.
+        self.white_bg = bool(getattr(args, 'white_bkgd', False))
+        # Ray bounds: from --near_far if given, else the historical default.
+        self.near_far = list(args.near_far) if getattr(args, 'near_far', None) else [0.1, 2.0]
         self.center = torch.mean(self.scene_bbox, axis=0).float().view(1, 1, 3)
         self.radius = (self.scene_bbox[1] - self.center).float().view(1, 1, 3)
         self.load_all()
@@ -78,7 +79,10 @@ class ViSNeRFDataset(Dataset):
             self.meta = json.load(f)
 
         w, h = self.img_wh
-        self.focal = 0.5 / np.tan(0.5 * 30/180*math.pi) * self.img_wh[0]  # original focal length
+        # Horizontal FOV from the transforms file; fall back to the historical
+        # hard-coded 30 deg if the field is absent (keeps old datasets working).
+        camera_angle_x = self.meta.get('camera_angle_x', 30.0 / 180.0 * math.pi)
+        self.focal = 0.5 * self.img_wh[0] / np.tan(0.5 * camera_angle_x)  # focal length in px
 
 
         self.directions = get_ray_directions(h, w, [self.focal,self.focal])  # (h, w, 3)
@@ -92,14 +96,36 @@ class ViSNeRFDataset(Dataset):
         self.all_params = []
         self.downsample = 1.0
 
+        # Optional per-scene pose canonicalization written by the adapter:
+        #   pose_normalization[scene] = {"center": [x,y,z], "scale": s}
+        # applied as  t' = (t - center) * s  so every scene lands in the shared
+        # bbox / normalize_coord cube. Absent -> poses used verbatim.
+        self.pose_norm = self.meta.get('pose_normalization', None)
+
+        param_range = self.max_params - self.min_params
+
         for i, frame in enumerate(tqdm(self.meta['frames'])):
-            pose = np.array(frame['transform_matrix']) @ self.blender2opencv
+            pose = np.array(frame['transform_matrix'], dtype=np.float64) @ self.blender2opencv
+            if self.pose_norm is not None:
+                s = self.pose_norm[frame['scene']]
+                pose[:3, 3] = (pose[:3, 3] - np.asarray(s['center'], dtype=np.float64)) * float(s['scale'])
             c2w = torch.FloatTensor(pose)
             self.poses += [c2w]
 
-            image_path = f"{self.root_dir}/{frame['file_path']}.png"
+            fp = frame['file_path']
+            # accept an absolute path (adapter output), a path that already
+            # carries an extension (CQ500: images/view_0.jpg), or a bare stem
+            # that needs .png appended (Nyx: ./train/r_0)
+            if os.path.isabs(fp):
+                image_path = fp
+            elif os.path.splitext(fp)[1]:
+                image_path = f"{self.root_dir}/{fp}"
+            else:
+                image_path = f"{self.root_dir}/{fp}.png"
             self.image_paths += [image_path]
             img = Image.open(image_path)
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
             if any(img.size[i] != self.resolution[i] for i in range(len(img.size))):
                 img = img.resize(self.img_wh, Image.LANCZOS)
             img = self.transform(img)
@@ -110,9 +136,11 @@ class ViSNeRFDataset(Dataset):
             self.all_rgbs.append(img)
             self.all_rays.append(rays)
 
-            params = np.array(frame['params'])
-            # print(params, self.min_params)
-            params = (params - self.min_params) / (self.max_params - self.min_params) * 2.0 - 1.0
+            params = np.array(frame['params'], dtype=np.float64)
+            # normalize each axis to [-1, 1]; axes with a single distinct value
+            # (param_range == 0) are pinned to 0 to avoid divide-by-zero
+            params = np.where(param_range == 0, 0.0,
+                              (params - self.min_params) / np.where(param_range == 0, 1.0, param_range) * 2.0 - 1.0)
             params = torch.ones(rays.size(0),1) * torch.FloatTensor(params)
             self.all_params += [params]
 

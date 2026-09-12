@@ -48,6 +48,8 @@ def config_parser(cmd=None):
     parser.add_argument('--min_params', type=float, action="append")
     parser.add_argument('--max_params', type=float, action="append")
     parser.add_argument('--bbox', type=parse_2d_array, action="append")
+    parser.add_argument('--near_far', type=float, action="append",
+                        help='[near, far] ray bounds; if unset the loader falls back to [0.1, 2.0]')
     parser.add_argument('--use_AlphaMask', type=lambda x: (str(x).lower() == 'true'), default=True, metavar='UAM', help='')
     # training options
     # learning rate

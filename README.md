@@ -13,9 +13,9 @@ cd ViSNeRF
 
 The conda environment for ViSNeRF. Install the dependencies and activate the environment `visnerf` with
 ```
-conda create -n visnerf python=3.8
+conda create -n visnerf python=3.9
 conda activate visnerf
-conda install -c nvidia/label/cuda-11.6.2 cuda-toolkit
+conda install nvidia::cuda-toolkit
 python -m pip install -r requirements.txt
 ```
 

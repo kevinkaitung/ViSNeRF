@@ -525,7 +525,13 @@ class TensorBase(torch.nn.Module):
         acc_map = torch.sum(weight, -1)
         rgb_map = torch.sum(weight[..., None] * rgb, -2)
 
-        if white_bg or (is_train and torch.rand((1,))<0.5):
+        # Composite over the background. For white_bg datasets the empty-space
+        # contribution is white; for black_bg datasets it is zero (add nothing).
+        # NOTE: upstream also randomly composited over white for ~50% of training
+        # iterations even when white_bg=False -- that injects wrong supervision
+        # against black-bg GT, so it is gated out here. (No effect when
+        # white_bg=True: that branch always fired regardless.)
+        if white_bg:
             rgb_map = rgb_map + (1. - acc_map[..., None])
 
         

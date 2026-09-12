@@ -293,7 +293,7 @@ def reconstruction(args):
         os.makedirs(f'{logfolder}/imgs_test_all', exist_ok=True)
         PSNRs_test = evaluation(test_dataset,visnerf, args, renderer, f'{logfolder}/imgs_test_all/',
                                 N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device)
-        summary_writer.add_scalar('test/psnr_all', np.mean(PSNRs_test), global_step=iteration)
+        # summary_writer.add_scalar('test/psnr_all', np.mean(PSNRs_test), global_step=iteration)
         print(f'======> {args.expname} test all psnr: {np.mean(PSNRs_test)} <========================')
 
     if args.render_path:
